@@ -187,7 +187,7 @@
       "shell": "powershell"
     },
     "modelPreferences": {
-      "default": "claude-opus-4-8",
+      "default": "claude-sonnet-4-6",
       "routing": "claude-haiku-4-5-20251001"
     },
     "agentTeams": {
@@ -197,7 +197,7 @@
       "mailboxEnabled": true,
       "coordination": {
         "autoAssignOnIdle": true,
-        "trainPatternsOnComplete": true,
+        "trainPatternsOnComplete": false,
         "notifyLeadOnComplete": true,
         "sharedMemoryNamespace": "agent-teams"
       },
@@ -209,20 +209,20 @@
         },
         "taskCompleted": {
           "enabled": true,
-          "trainPatterns": true,
+          "trainPatterns": false,
           "notifyLead": true
         }
       }
     },
     "swarm": {
       "topology": "hierarchical-mesh",
-      "maxAgents": 15
+      "maxAgents": 5
     },
     "memory": {
       "backend": "hybrid",
       "enableHNSW": true,
       "learningBridge": {
-        "enabled": true
+        "enabled": false
       },
       "memoryGraph": {
         "enabled": true
@@ -232,54 +232,30 @@
       }
     },
     "neural": {
-      "enabled": true
+      "enabled": false
     },
     "daemon": {
       "autoStart": false,
-      "workers": [
-        "map",
-        "audit",
-        "optimize"
-      ],
-      "schedules": {
-        "audit": {
-          "interval": "4h",
-          "priority": "critical"
-        },
-        "optimize": {
-          "interval": "2h",
-          "priority": "high"
-        }
-      }
+      "workers": []
     },
     "learning": {
-      "enabled": true,
-      "autoTrain": true,
-      "patterns": [
-        "coordination",
-        "optimization",
-        "prediction"
-      ],
-      "retention": {
-        "shortTerm": "24h",
-        "longTerm": "30d"
-      }
+      "enabled": false,
+      "autoTrain": false
     },
     "adr": {
       "autoGenerate": true,
-      "directory": "/docs/adr",
+      "directory": "docs/adr",
       "template": "madr"
     },
     "ddd": {
-      "trackDomains": true,
-      "validateBoundedContexts": true,
-      "directory": "/docs/ddd"
+      "trackDomains": false,
+      "validateBoundedContexts": false
     },
     "security": {
       "autoScan": true,
       "scanOnEdit": true,
-      "cveCheck": true,
-      "threatModel": true
+      "cveCheck": false,
+      "threatModel": false
     }
   }
 }
