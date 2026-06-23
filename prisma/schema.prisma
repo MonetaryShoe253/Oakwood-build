@@ -1,0 +1,16 @@
+// Prisma infra stub (Milestone 0).
+//
+// The full data model — Role / Category / TicketStatus enums and the
+// User / Property / Ticket models — is the Milestone 1 contract defined in
+// build-spec §3. Do NOT add models here without doing M1 (and per CLAUDE.md,
+// changes to §§3/4 require explicit consent). This file only wires up the
+// generator + datasource so the Prisma client can be generated.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
