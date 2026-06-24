@@ -68,11 +68,19 @@ export default async function DashboardPage({
             Signed in as {session.user.name ?? session.user.email}
           </p>
         </div>
-        <form action={logout}>
-          <Button type="submit" variant="outline" size="sm">
-            Sign out
-          </Button>
-        </form>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/properties"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            Properties
+          </Link>
+          <form action={logout}>
+            <Button type="submit" variant="outline" size="sm">
+              Sign out
+            </Button>
+          </form>
+        </div>
       </header>
 
       {/* Filters — applied server-side via GET (build-spec §7). */}
