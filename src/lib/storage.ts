@@ -38,3 +38,24 @@ export async function getObjectUrl(_key: string): Promise<string> {
   // TODO: return `${STORAGE_PUBLIC_BASE_URL}/${key}` or a signed GET URL.
   throw new Error("storage.getObjectUrl not yet implemented (M0 stub)");
 }
+
+export interface PutObjectParams {
+  /** Full object key, e.g. `tickets/{ticketId}/{uuid}.{ext}`. */
+  key: string;
+  body: Uint8Array;
+  /** MIME type — must be image/jpeg or image/png (validated by caller). */
+  contentType: string;
+}
+
+/**
+ * Server-side upload of an already-validated object. The public form uploads
+ * the tenant photo through here (key + bytes computed by the caller).
+ *
+ * Real S3/R2 integration lands in a later milestone; until then this throws so
+ * callers fall back gracefully (a missing photo must never lose the ticket —
+ * see `createTicket`). Storage being unconfigured is treated as "no photo".
+ */
+export async function putObject(_params: PutObjectParams): Promise<void> {
+  // TODO: PutObject via an S3-compatible client (R2/S3).
+  throw new Error("storage.putObject not yet implemented (M0 stub)");
+}
