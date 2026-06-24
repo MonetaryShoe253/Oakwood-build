@@ -34,9 +34,16 @@ export async function createPresignedUpload(
   throw new Error("storage.createPresignedUpload not yet implemented (M0 stub)");
 }
 
-export async function getObjectUrl(_key: string): Promise<string> {
-  // TODO: return `${STORAGE_PUBLIC_BASE_URL}/${key}` or a signed GET URL.
-  throw new Error("storage.getObjectUrl not yet implemented (M0 stub)");
+/**
+ * Public URL for a stored object. Uses `STORAGE_PUBLIC_BASE_URL` + key when
+ * configured; returns null if storage isn't set up yet (callers render a
+ * "preview unavailable" placeholder rather than failing). Signed GETs can
+ * replace this later without changing the call site.
+ */
+export function getObjectUrl(key: string): string | null {
+  const base = process.env.STORAGE_PUBLIC_BASE_URL?.replace(/\/+$/, "");
+  if (!base) return null;
+  return `${base}/${key}`;
 }
 
 export interface PutObjectParams {

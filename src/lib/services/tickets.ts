@@ -199,6 +199,44 @@ export async function listTickets(
   };
 }
 
+export interface TicketDetail {
+  id: string;
+  reference: number;
+  createdAt: Date;
+  resolvedAt: Date | null;
+  status: StatusValue;
+  category: CategoryValue;
+  tenantName: string;
+  tenantEmail: string;
+  tenantPhone: string;
+  propertyAddressSnapshot: string;
+  description: string;
+  internalNotes: string | null;
+  photoKey: string | null;
+}
+
+/** Full ticket for the detail page (build-spec §8). Null if not found. */
+export async function getTicketById(id: string): Promise<TicketDetail | null> {
+  return prisma.ticket.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      reference: true,
+      createdAt: true,
+      resolvedAt: true,
+      status: true,
+      category: true,
+      tenantName: true,
+      tenantEmail: true,
+      tenantPhone: true,
+      propertyAddressSnapshot: true,
+      description: true,
+      internalNotes: true,
+      photoKey: true,
+    },
+  });
+}
+
 /** Thrown when a ticket id does not exist (→ 404). */
 export class TicketNotFoundError extends Error {
   constructor() {
