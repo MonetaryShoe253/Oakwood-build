@@ -4,7 +4,11 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { putObject } from "@/lib/storage";
-import type { CategoryValue } from "@/lib/validation/ticket";
+import type {
+  CategoryValue,
+  StatusValue,
+  TicketListQuery,
+} from "@/lib/validation/ticket";
 
 /** First human-facing reference; monotonic, never reused (build-spec §3). */
 const FIRST_REFERENCE = 1001;
@@ -115,6 +119,133 @@ export async function createTicket(
     `Failed to assign a unique ticket reference after ${MAX_REFERENCE_ATTEMPTS} attempts`,
     { cause: lastError },
   );
+}
+
+/** Tickets per dashboard page (build-spec §7). */
+export const TICKET_PAGE_SIZE = 25;
+
+export interface TicketListRow {
+  id: string;
+  reference: number;
+  createdAt: Date;
+  propertyAddressSnapshot: string;
+  tenantName: string;
+  category: CategoryValue;
+  status: StatusValue;
+  hasPhoto: boolean;
+}
+
+export interface TicketListResult {
+  rows: TicketListRow[];
+  total: number;
+  page: number;
+  pageCount: number;
+}
+
+/**
+ * Paginated, filtered ticket list for the dashboard (§7). Filters and search
+ * are applied server-side; sorted newest-first. Search is a case-insensitive
+ * "contains" across snapshot address, tenant name and description, plus an
+ * exact reference match when the query is numeric.
+ */
+export async function listTickets(
+  query: TicketListQuery,
+): Promise<TicketListResult> {
+  const where: Prisma.TicketWhereInput = {};
+  if (query.status) where.status = query.status;
+  if (query.propertyId) where.propertyId = query.propertyId;
+
+  if (query.q) {
+    const q = query.q;
+    const or: Prisma.TicketWhereInput[] = [
+      { propertyAddressSnapshot: { contains: q, mode: "insensitive" } },
+      { tenantName: { contains: q, mode: "insensitive" } },
+      { description: { contains: q, mode: "insensitive" } },
+    ];
+    const asNumber = Number(q);
+    if (Number.isInteger(asNumber)) or.push({ reference: asNumber });
+    where.OR = or;
+  }
+
+  const page = Math.max(1, query.page);
+  const [total, tickets] = await prisma.$transaction([
+    prisma.ticket.count({ where }),
+    prisma.ticket.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (page - 1) * TICKET_PAGE_SIZE,
+      take: TICKET_PAGE_SIZE,
+      select: {
+        id: true,
+        reference: true,
+        createdAt: true,
+        propertyAddressSnapshot: true,
+        tenantName: true,
+        category: true,
+        status: true,
+        photoKey: true,
+      },
+    }),
+  ]);
+
+  return {
+    rows: tickets.map(({ photoKey, ...rest }) => ({
+      ...rest,
+      hasPhoto: photoKey !== null,
+    })),
+    total,
+    page,
+    pageCount: Math.max(1, Math.ceil(total / TICKET_PAGE_SIZE)),
+  };
+}
+
+/** Thrown when a ticket id does not exist (→ 404). */
+export class TicketNotFoundError extends Error {
+  constructor() {
+    super("Ticket not found.");
+    this.name = "TicketNotFoundError";
+  }
+}
+
+export interface UpdateTicketInput {
+  status?: StatusValue;
+  internalNotes?: string | null;
+}
+
+/**
+ * Update a ticket's status and/or internal notes (§8/§11). When the status
+ * first transitions INTO RESOLVED (previousStatus !== RESOLVED), `resolvedAt`
+ * is stamped — exactly the trigger that will fire Email 3 in M7. Re-toggling
+ * does not re-stamp or (later) re-send. Email sending is deferred to M7.
+ */
+export async function updateTicket(
+  id: string,
+  input: UpdateTicketInput,
+): Promise<{ id: string; status: StatusValue; justResolved: boolean }> {
+  const existing = await prisma.ticket.findUnique({
+    where: { id },
+    select: { status: true },
+  });
+  if (!existing) throw new TicketNotFoundError();
+
+  const justResolved =
+    input.status === "RESOLVED" && existing.status !== "RESOLVED";
+
+  const data: Prisma.TicketUpdateInput = {};
+  if (input.status !== undefined) data.status = input.status;
+  if (input.internalNotes !== undefined) data.internalNotes = input.internalNotes;
+  if (justResolved) data.resolvedAt = new Date();
+
+  const updated = await prisma.ticket.update({
+    where: { id },
+    data,
+    select: { id: true, status: true },
+  });
+
+  // NOTE(M7): if (justResolved) send Email 3 to the tenant — post-commit and
+  // non-blocking. Deferred per the build order (§14).
+
+  return { id: updated.id, status: updated.status, justResolved };
 }
 
 async function attachPhotoBestEffort(

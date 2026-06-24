@@ -33,6 +33,31 @@ export function categoryLabel(value: CategoryValue): string {
   return CATEGORY_OPTIONS.find((o) => o.value === value)?.label ?? value;
 }
 
+/** Mirrors the Prisma `TicketStatus` enum (§3/§4); kept prisma-free for the client. */
+export const STATUS_VALUES = [
+  "NEW",
+  "IN_PROGRESS",
+  "ASSIGNED_TO_CONTRACTOR",
+  "RESOLVED",
+] as const;
+
+export type StatusValue = (typeof STATUS_VALUES)[number];
+
+/** Display label → machine value, per §4 (do not paraphrase). */
+export const STATUS_OPTIONS: ReadonlyArray<{
+  value: StatusValue;
+  label: string;
+}> = [
+  { value: "NEW", label: "New" },
+  { value: "IN_PROGRESS", label: "In Progress" },
+  { value: "ASSIGNED_TO_CONTRACTOR", label: "Assigned to Contractor" },
+  { value: "RESOLVED", label: "Resolved" },
+];
+
+export function statusLabel(value: StatusValue): string {
+  return STATUS_OPTIONS.find((o) => o.value === value)?.label ?? value;
+}
+
 // File rules (§5/§12): single JPEG/PNG, ≤10 MB. Enforced server-side too.
 export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 export const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png"] as const;
@@ -72,6 +97,35 @@ export const ticketFormSchema = z.object({
 });
 
 export type TicketFormValues = z.infer<typeof ticketFormSchema>;
+
+/**
+ * Staff ticket update (build-spec §8/§11): change status and/or internal notes.
+ * At least one field must be present.
+ */
+export const ticketUpdateSchema = z
+  .object({
+    status: z.enum(STATUS_VALUES).optional(),
+    internalNotes: z
+      .string()
+      .max(10000, "Internal notes are too long.")
+      .nullable()
+      .optional(),
+  })
+  .refine((data) => data.status !== undefined || data.internalNotes !== undefined, {
+    message: "Provide a status and/or internal notes to update.",
+  });
+
+export type TicketUpdateValues = z.infer<typeof ticketUpdateSchema>;
+
+/** Dashboard list query params (§7/§11). All optional. */
+export const ticketListQuerySchema = z.object({
+  status: z.enum(STATUS_VALUES).optional(),
+  propertyId: z.string().min(1).optional(),
+  q: z.string().trim().max(200).optional(),
+  page: z.coerce.number().int().min(1).default(1),
+});
+
+export type TicketListQuery = z.infer<typeof ticketListQuerySchema>;
 
 /**
  * Validate an uploaded photo (optional). Works with any `File`/`Blob`-like
