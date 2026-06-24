@@ -1,10 +1,9 @@
-// Prisma infra stub (Milestone 0).
+// Oakwood Maintenance — data model (Milestone 1 contract).
 //
-// The full data model — Role / Category / TicketStatus enums and the
-// User / Property / Ticket models — is the Milestone 1 contract defined in
-// build-spec §3. Do NOT add models here without doing M1 (and per CLAUDE.md,
-// changes to §§3/4 require explicit consent). This file only wires up the
-// generator + datasource so the Prisma client can be generated.
+// This is the source of truth defined in build-spec §3. The enum values,
+// field names, and relationships below are immutable per CLAUDE.md (§§3/4):
+// do NOT rename fields, change enum values, or alter relationships without
+// updating /docs/build-spec-oakwood-maintenance.md first and getting consent.
 
 generator client {
   provider = "prisma-client-js"
@@ -13,4 +12,60 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+enum Role {
+  STAFF
+}
+
+enum Category {
+  PLUMBING
+  ELECTRICAL
+  HEATING_BOILER
+  GENERAL
+}
+
+enum TicketStatus {
+  NEW
+  IN_PROGRESS
+  ASSIGNED_TO_CONTRACTOR
+  RESOLVED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         Role     @default(STAFF)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Property {
+  id        String   @id @default(cuid())
+  address   String // one line per CSV row, e.g. "14 Elm Road, Flat 2"
+  archived  Boolean  @default(false) // soft-remove; dropdown shows non-archived only
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tickets   Ticket[]
+}
+
+model Ticket {
+  id                      String       @id @default(cuid())
+  reference               Int          @unique // human ref, displayed "#<reference>", starts at 1001
+  property                Property     @relation(fields: [propertyId], references: [id])
+  propertyId              String
+  propertyAddressSnapshot String // copy of address at submission (survives archive/edit)
+  tenantName              String
+  tenantEmail             String
+  tenantPhone             String
+  category                Category
+  description             String       @db.Text
+  photoKey                String? // object-storage key; null if no photo
+  status                  TicketStatus @default(NEW)
+  internalNotes           String?      @db.Text // SINGLE editable field, not a thread
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+  resolvedAt              DateTime?
 }
