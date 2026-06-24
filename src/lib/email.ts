@@ -1,17 +1,16 @@
 /**
- * Transactional email module (Milestone 0 stub).
+ * Transactional email module (build-spec §10).
  *
- * Per build-spec §10, all email goes through this single `sendEmail()` entry
- * point so the provider (Resend / SMTP) is swappable. Exactly three emails
- * exist in the product (team alert + tenant confirmation on create, tenant
- * resolution on resolve); those callers are wired in M7. Sends are post-commit
- * and non-blocking — a provider failure must be caught and logged, never lose
- * the ticket.
+ * Single `sendEmail()` entry point so the provider (Resend here) is swappable.
+ * Exactly three emails exist in the product (team alert + tenant confirmation
+ * on create, tenant resolution on resolve); their content lives in
+ * `services/notifications.ts`. Sends are post-commit and non-blocking — a
+ * provider failure is caught, logged, and never loses the ticket.
  *
- * This is an infra placeholder: it validates nothing real and sends nothing.
- * The real provider integration (with retry-once on transient failure) lands
- * in M7.
+ * Includes a single retry on failure. When `RESEND_API_KEY` is unset (local /
+ * demo per §15), this no-ops and logs instead of sending, so no real mail fires.
  */
+import { Resend } from "resend";
 
 export interface SendEmailParams {
   /** Recipient address. */
@@ -30,13 +29,44 @@ export interface SendEmailResult {
   id?: string;
 }
 
+const DEFAULT_FROM =
+  "Oakwood Property Management <maintenance@oakwoodpm.co.uk>";
+
 export async function sendEmail(
   params: SendEmailParams,
 ): Promise<SendEmailResult> {
-  // TODO(M7): integrate Resend (or SMTP) behind this function, including a
-  // single retry on transient failure. See build-spec §10.
-  console.warn(
-    `[email:stub] sendEmail not yet implemented — would send "${params.subject}" to ${params.to}`,
-  );
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn(
+      `[email] RESEND_API_KEY not set — skipping "${params.subject}" to ${params.to}`,
+    );
+    return { sent: false };
+  }
+
+  const from = process.env.FROM_EMAIL ?? DEFAULT_FROM;
+  const resend = new Resend(apiKey);
+
+  // Send with a single retry on transient failure (§10).
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const { data, error } = await resend.emails.send({
+        from,
+        to: params.to,
+        subject: params.subject,
+        text: params.body,
+        replyTo: params.replyTo,
+      });
+      if (error) throw new Error(error.message);
+      return { sent: true, id: data?.id };
+    } catch (err) {
+      if (attempt === 2) {
+        console.error(
+          `[email] failed to send "${params.subject}" to ${params.to} after retry:`,
+          err,
+        );
+        return { sent: false };
+      }
+    }
+  }
   return { sent: false };
 }

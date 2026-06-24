@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import {
+  sendNewTicketNotifications,
+  sendResolutionNotification,
+} from "@/lib/services/notifications";
 import { putObject } from "@/lib/storage";
 import type {
   CategoryValue,
@@ -59,7 +63,7 @@ function isUniqueViolation(error: unknown): boolean {
  *
  * Photo upload is best-effort: a storage failure is logged and the ticket is
  * still created without a photo — a downstream failure must never lose the
- * ticket (§12). Emails (1 & 2) are wired in M7 and intentionally NOT sent here.
+ * ticket (§12). Emails 1 (team) & 2 (tenant) fire post-commit and non-blocking.
  */
 export async function createTicket(
   input: CreateTicketInput,
@@ -95,16 +99,35 @@ export async function createTicket(
             description: input.description,
             status: "NEW",
           },
-          select: { id: true, reference: true },
+          select: {
+            id: true,
+            reference: true,
+            propertyAddressSnapshot: true,
+          },
         });
       });
 
       await attachPhotoBestEffort(ticket.id, input.photo);
 
-      // NOTE(M7): fire Email 1 (team) and Email 2 (tenant) here, post-commit
-      // and non-blocking. Deferred per the build order (§14) — form first.
+      // Emails 1 & 2 — post-commit, non-blocking: a provider error is caught
+      // inside and must never affect the created ticket (§10/§12).
+      try {
+        await sendNewTicketNotifications({
+          id: ticket.id,
+          reference: ticket.reference,
+          propertyAddressSnapshot: ticket.propertyAddressSnapshot,
+          category: input.category,
+          tenantName: input.tenantName,
+          tenantEmail: input.tenantEmail,
+          tenantPhone: input.tenantPhone,
+          description: input.description,
+          hasPhoto: Boolean(input.photo),
+        });
+      } catch (error) {
+        console.error("[tickets] new-ticket emails failed:", error);
+      }
 
-      return ticket;
+      return { id: ticket.id, reference: ticket.reference };
     } catch (error) {
       if (error instanceof InvalidPropertyError) throw error;
       if (isUniqueViolation(error)) {
@@ -253,8 +276,8 @@ export interface UpdateTicketInput {
 /**
  * Update a ticket's status and/or internal notes (§8/§11). When the status
  * first transitions INTO RESOLVED (previousStatus !== RESOLVED), `resolvedAt`
- * is stamped — exactly the trigger that will fire Email 3 in M7. Re-toggling
- * does not re-stamp or (later) re-send. Email sending is deferred to M7.
+ * is stamped and Email 3 fires exactly once — re-toggling does not re-stamp or
+ * re-send. The email is post-commit and non-blocking (§10/§12).
  */
 export async function updateTicket(
   id: string,
@@ -262,7 +285,14 @@ export async function updateTicket(
 ): Promise<{ id: string; status: StatusValue; justResolved: boolean }> {
   const existing = await prisma.ticket.findUnique({
     where: { id },
-    select: { status: true },
+    select: {
+      status: true,
+      reference: true,
+      category: true,
+      tenantName: true,
+      tenantEmail: true,
+      description: true,
+    },
   });
   if (!existing) throw new TicketNotFoundError();
 
@@ -280,8 +310,20 @@ export async function updateTicket(
     select: { id: true, status: true },
   });
 
-  // NOTE(M7): if (justResolved) send Email 3 to the tenant — post-commit and
-  // non-blocking. Deferred per the build order (§14).
+  if (justResolved) {
+    // Email 3 — post-commit, non-blocking; a provider error never surfaces.
+    try {
+      await sendResolutionNotification({
+        reference: existing.reference,
+        category: existing.category,
+        tenantName: existing.tenantName,
+        tenantEmail: existing.tenantEmail,
+        description: existing.description,
+      });
+    } catch (error) {
+      console.error("[tickets] resolution email failed:", error);
+    }
+  }
 
   return { id: updated.id, status: updated.status, justResolved };
 }
