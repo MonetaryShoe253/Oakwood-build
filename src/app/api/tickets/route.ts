@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { checkRateLimit } from "@/lib/rate-limit";
 import { createTicket, InvalidPropertyError } from "@/lib/services/tickets";
 import {
   EXTENSION_BY_TYPE,
@@ -20,6 +21,12 @@ function field(form: FormData, name: string): string {
   return typeof value === "string" ? value : "";
 }
 
+function clientIp(request: Request): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  if (forwarded) return forwarded.split(",")[0]!.trim();
+  return request.headers.get("x-real-ip") ?? "unknown";
+}
+
 /**
  * POST /api/tickets — public ticket creation (build-spec §5/§11).
  * Validates (server-side, never trusting the client), stores an optional
@@ -28,6 +35,20 @@ function field(form: FormData, name: string): string {
  * NOTE: per-IP rate limiting (§5) is part of M8 hardening and not yet applied.
  */
 export async function POST(request: Request): Promise<NextResponse> {
+  // Per-IP rate limit (§5): 5/min, 30/hour → 429 with Retry-After.
+  const rate = checkRateLimit(`tickets:${clientIp(request)}`);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { ok: false, error: "Too many requests. Please try again shortly." },
+      {
+        status: 429,
+        headers: rate.retryAfterSeconds
+          ? { "Retry-After": String(rate.retryAfterSeconds) }
+          : undefined,
+      },
+    );
+  }
+
   let form: FormData;
   try {
     form = await request.formData();
