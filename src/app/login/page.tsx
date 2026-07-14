@@ -1,7 +1,10 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { LoginForm } from "@/components/login-form";
 import { auth } from "@/auth";
+import { buttonVariants } from "@/components/ui/button";
+import { DEMO_MODE } from "@/lib/demo";
 
 export const metadata = { title: "Staff sign in — Oakwood Maintenance" };
 
@@ -27,6 +30,24 @@ export default async function LoginPage({
           Oakwood Property Management — maintenance dashboard.
         </p>
       </header>
+
+      {DEMO_MODE ? (
+        <div className="mb-6 rounded-lg border border-input bg-muted/30 p-4 text-sm">
+          <p className="font-medium">This is a public demo.</p>
+          <p className="mt-1 text-muted-foreground">
+            Sign-in is optional here — the dashboard is open so you can explore
+            everything. Real credential auth (Auth.js + argon2id) still ships in
+            the app and can be switched back on.
+          </p>
+          <Link
+            href="/dashboard"
+            className={`${buttonVariants({ size: "sm" })} mt-3`}
+          >
+            Continue to dashboard →
+          </Link>
+        </div>
+      ) : null}
+
       <LoginForm callbackUrl={safePath(callbackUrl)} />
     </main>
   );

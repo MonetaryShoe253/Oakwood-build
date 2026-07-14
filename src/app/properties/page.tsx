@@ -3,8 +3,10 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { AddPropertyForm } from "@/components/add-property-form";
+import { DemoBanner } from "@/components/demo-banner";
 import { PropertyItem } from "@/components/property-item";
 import { buttonVariants } from "@/components/ui/button";
+import { DEMO_MODE } from "@/lib/demo";
 import { listProperties } from "@/lib/services/properties";
 
 export const dynamic = "force-dynamic";
@@ -16,14 +18,16 @@ export default async function PropertiesPage({
   searchParams: Promise<{ showArchived?: string }>;
 }) {
   const session = await auth();
-  if (!session?.user) redirect("/login");
+  if (!DEMO_MODE && !session?.user) redirect("/login");
 
   const { showArchived } = await searchParams;
   const includeArchived = showArchived === "1";
   const properties = await listProperties(includeArchived);
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
+    <>
+      {DEMO_MODE ? <DemoBanner /> : null}
+      <main className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Properties</h1>
@@ -77,6 +81,7 @@ export default async function PropertiesPage({
           </table>
         </div>
       )}
-    </main>
+      </main>
+    </>
   );
 }

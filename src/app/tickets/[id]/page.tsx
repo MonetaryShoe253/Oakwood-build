@@ -4,9 +4,11 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth";
+import { DemoBanner } from "@/components/demo-banner";
 import { InternalNotes } from "@/components/internal-notes";
 import { StatusSelect } from "@/components/status-select";
 import { buttonVariants } from "@/components/ui/button";
+import { DEMO_MODE } from "@/lib/demo";
 import { exactTime, relativeTime } from "@/lib/format";
 import { getTicketById } from "@/lib/services/tickets";
 import { getObjectUrl } from "@/lib/storage";
@@ -25,7 +27,7 @@ export default async function TicketDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const session = await auth();
-  if (!session?.user) redirect("/login");
+  if (!DEMO_MODE && !session?.user) redirect("/login");
 
   const { id } = await params;
   const ticket = await getTicketById(id);
@@ -34,7 +36,9 @@ export default async function TicketDetailPage({
   const photoUrl = ticket.photoKey ? getObjectUrl(ticket.photoKey) : null;
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
+    <>
+      {DEMO_MODE ? <DemoBanner /> : null}
+      <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
       <Link
         href="/dashboard"
         className="text-sm text-muted-foreground underline-offset-2 hover:underline"
@@ -143,7 +147,8 @@ export default async function TicketDetailPage({
           Back to dashboard
         </Link>
       </div>
-    </main>
+      </main>
+    </>
   );
 }
 

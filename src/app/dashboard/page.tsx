@@ -2,8 +2,11 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
+import { DemoBanner } from "@/components/demo-banner";
+import { ResetDemoButton } from "@/components/reset-demo-button";
 import { StatusSelect } from "@/components/status-select";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { DEMO_MODE } from "@/lib/demo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
@@ -44,7 +47,7 @@ export default async function DashboardPage({
   searchParams: Promise<RawParams>;
 }) {
   const session = await auth();
-  if (!session?.user) redirect("/login");
+  if (!DEMO_MODE && !session?.user) redirect("/login");
 
   const raw = await searchParams;
   const parsed = ticketListQuerySchema.safeParse(raw);
@@ -58,28 +61,35 @@ export default async function DashboardPage({
   const filtersActive = Boolean(query.status || query.propertyId || query.q);
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
+    <>
+      {DEMO_MODE ? <DemoBanner /> : null}
+      <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">
             Maintenance tickets
           </h1>
           <p className="text-sm text-muted-foreground">
-            Signed in as {session.user.name ?? session.user.email}
+            {session?.user
+              ? `Signed in as ${session.user.name ?? session.user.email}`
+              : "Staff view — triage, track, and resolve tenant requests"}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {DEMO_MODE ? <ResetDemoButton /> : null}
           <Link
             href="/properties"
             className={buttonVariants({ variant: "outline", size: "sm" })}
           >
             Properties
           </Link>
-          <form action={logout}>
-            <Button type="submit" variant="outline" size="sm">
-              Sign out
-            </Button>
-          </form>
+          {session?.user ? (
+            <form action={logout}>
+              <Button type="submit" variant="outline" size="sm">
+                Sign out
+              </Button>
+            </form>
+          ) : null}
         </div>
       </header>
 
@@ -215,7 +225,8 @@ export default async function DashboardPage({
           </nav>
         </>
       )}
-    </main>
+      </main>
+    </>
   );
 }
 

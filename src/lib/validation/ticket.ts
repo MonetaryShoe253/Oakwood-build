@@ -117,12 +117,22 @@ export const ticketUpdateSchema = z
 
 export type TicketUpdateValues = z.infer<typeof ticketUpdateSchema>;
 
+/**
+ * A blank query-string value ("") means "no filter", not an invalid one. The
+ * dashboard's GET form always submits every field, so unused filters arrive as
+ * empty strings — coerce those to `undefined` BEFORE validating, otherwise a
+ * blank `status`/`propertyId` fails the enum/`min(1)` check and (via safeParse
+ * fallback) silently wipes out the filters the user actually set.
+ */
+const blankToUndefined = (value: unknown) =>
+  typeof value === "string" && value.trim() === "" ? undefined : value;
+
 /** Dashboard list query params (§7/§11). All optional. */
 export const ticketListQuerySchema = z.object({
-  status: z.enum(STATUS_VALUES).optional(),
-  propertyId: z.string().min(1).optional(),
-  q: z.string().trim().max(200).optional(),
-  page: z.coerce.number().int().min(1).default(1),
+  status: z.preprocess(blankToUndefined, z.enum(STATUS_VALUES).optional()),
+  propertyId: z.preprocess(blankToUndefined, z.string().min(1).optional()),
+  q: z.preprocess(blankToUndefined, z.string().trim().max(200).optional()),
+  page: z.preprocess(blankToUndefined, z.coerce.number().int().min(1).default(1)),
 });
 
 export type TicketListQuery = z.infer<typeof ticketListQuerySchema>;
