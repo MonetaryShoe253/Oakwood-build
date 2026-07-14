@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/auth";
+import { DEMO_MODE } from "@/lib/demo";
 import {
   TicketNotFoundError,
   updateTicket,
@@ -11,15 +12,18 @@ export const runtime = "nodejs";
 
 /**
  * PATCH /api/staff/tickets/[id] — update status and/or internal notes (§11).
- * Per-handler session check (defence in depth alongside middleware, §6/§12).
+ * Per-handler session check (defence in depth alongside middleware, §6/§12);
+ * skipped in public-demo mode so visitors can edit freely (see src/lib/demo.ts).
  */
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> },
 ): Promise<NextResponse> {
-  const session = await auth();
-  if (!session?.user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!DEMO_MODE) {
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   const { id } = await params;

@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import { NextResponse } from "next/server";
 
 import authConfig from "@/auth.config";
+import { DEMO_MODE } from "@/lib/demo";
 
 // Edge-safe auth instance (no Prisma/argon2) just to read the JWT session.
 const { auth } = NextAuth(authConfig);
@@ -13,6 +14,15 @@ export default auth((req) => {
   const { nextUrl } = req;
   const isLoggedIn = Boolean(req.auth);
   const { pathname } = nextUrl;
+
+  // Public-demo mode: the staff area is open to everyone (see src/lib/demo.ts).
+  // Keep the "already signed-in → dashboard" convenience, but never gate.
+  if (DEMO_MODE) {
+    if (isLoggedIn && pathname === "/login") {
+      return NextResponse.redirect(new URL("/dashboard", nextUrl));
+    }
+    return NextResponse.next();
+  }
 
   const isStaffApi = pathname.startsWith("/api/staff");
   const isProtectedPage = PROTECTED_PAGE_PREFIXES.some(

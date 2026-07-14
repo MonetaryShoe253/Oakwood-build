@@ -2,11 +2,27 @@
 
 A maintenance-request system for **Oakwood Property Management**. Tenants submit
 repair requests through a public form (no login required); office staff triage,
-track, and resolve them from a protected dashboard. Three transactional emails
-keep everyone informed — and nothing else.
+track, and resolve them from a dashboard. Three transactional emails keep
+everyone informed — and nothing else.
 
 The canonical specification is **[`docs/build-spec-oakwood-maintenance.md`](docs/build-spec-oakwood-maintenance.md)**.
 That document wins on any conflict with this README.
+
+> ### 🔎 Running as a public demo
+> This deployment runs in **public-demo mode** (`DEMO_MODE=true`, the default): the
+> staff dashboard, ticket, and property pages — and the staff mutation APIs — are
+> open so anyone can view and edit every feature without signing in. A "Live demo"
+> banner makes that clear, and the home page links straight into the dashboard.
+>
+> The auth system is **not** removed — `/login` still works with the seeded
+> credentials, and setting **`DEMO_MODE=false`** restores the full staff-only wall
+> (middleware + per-handler session checks, build-spec §6/§12) with no code changes.
+>
+> A **"Reset demo data"** button in the dashboard header restores the seed defaults
+> (`POST /api/staff/reset`) so visitors can undo their edits. It wipes all tickets
+> and properties and recreates the showcase set from the shared dataset in
+> `src/lib/demo-seed-data.ts` — the same data the deploy seed uses. The reset
+> endpoint is demo-only: with `DEMO_MODE=false` it 404s and never touches data.
 
 ---
 
@@ -73,6 +89,7 @@ deployment. **Never commit secrets.**
 | `FROM_EMAIL`             | For email | Verified sender address for outbound mail. |
 | `TEAM_INBOX_EMAIL`       | Optional | Recipient of the new-request team alert. Defaults to `maintenance@oakwoodpm.co.uk`. |
 | `STORAGE_PUBLIC_BASE_URL`| Optional | Public base URL for tenant photo object storage. |
+| `DEMO_MODE`              | Optional | `true` (default) opens the staff area to everyone for a public demo. Set to `false` to require staff sign-in. |
 | `SEED_STAFF_PASSWORD`    | Seed only | Password applied to seeded staff users. Defaults to `ChangeMe!2024`. |
 
 ---
@@ -132,18 +149,19 @@ Environment-variable changes only take effect on the **next deployment**.
 src/
   app/
     page.tsx                 Public maintenance-request form
-    login/                   Staff sign-in
-    dashboard/               Staff ticket list (protected)
-    tickets/[id]/            Ticket detail (protected)
-    properties/              Manage properties (protected)
+    login/                   Staff sign-in (optional in demo mode)
+    dashboard/               Staff ticket list (open in demo mode)
+    tickets/[id]/            Ticket detail (open in demo mode)
+    properties/              Manage properties (open in demo mode)
     api/
       tickets/               Public: create a ticket
-      staff/                 Protected: ticket + property mutations
+      staff/                 Ticket + property mutations (open in demo mode)
       auth/[...nextauth]/    Auth.js route handlers
   lib/
     services/                Business logic (tickets, properties, notifications)
     validation/              Zod schemas (shared client + server)
     actions/                 Server actions (auth)
+    demo.ts                  DEMO_MODE flag (relaxes the staff-auth wall)
     email.ts                 sendEmail() transport
     storage.ts               Object-storage interface (M0 stub)
     prisma.ts                Prisma client
